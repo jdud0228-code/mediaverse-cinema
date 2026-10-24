@@ -9,40 +9,88 @@ function localSet(k,v){localStorage.setItem(localKey(k),JSON.stringify(v))}
 async function api(path,opts={}){if(!API)throw Error("API_BASE_URL не настроен");const headers={"Content-Type":"application/json",...(opts.headers||{})};if(tg?.initData)headers["X-Telegram-Init-Data"]=tg.initData;const r=await fetch(API+path,{...opts,headers});if(!r.ok)throw Error(await r.text());return r.json()}
 
 async function init(){
-  if(tg){
-    tg.ready();
-    tg.expand();
-  }
-
-  try {
-    items = await api("/api/catalog");
-  } catch(e) {
-    console.error("Ошибка загрузки каталога:", e);
-    items = [];
-  }
-
-  try {
-    if(tg?.initData) {
-      user = await api("/api/me");
-      favorites = await api("/api/favorites");
-      history = await api("/api/history");
-    } else {
-      favorites = localGet("favorites");
-      history = localGet("history");
-    }
-  } catch(e) {
-    favorites = localGet("favorites");
-    history = localGet("history");
-  }
-
+  if(tg){tg.ready();tg.expand();}
+  try{items=await api("/api/catalog")}catch(e){console.error("Ошибка загрузки каталога:",e);items=[]}
+  try{
+    if(tg?.initData){user=await api("/api/me");favorites=await api("/api/favorites");history=await api("/api/history")}
+    else{favorites=localGet("favorites");history=localGet("history")}
+  }catch(e){favorites=localGet("favorites");history=localGet("history")}
   render();
 }
 
 function kindFilter(tab,x){if(tab==="movies")return x.kind==="movie";if(tab==="series")return x.kind==="series";if(tab==="anime")return x.kind==="anime";if(tab==="youtube")return x.kind==="youtube";if(tab==="tiktok")return x.kind==="tiktok";return true}
-function render(){const t=TITLES[activeTab]||TITLES.home;$("eyebrow").textContent=t[0];$("sectionTitle").textContent=t[1];const q=query.trim().toLowerCase();let list=items.filter(x=>kindFilter(activeTab,x));if(activeTab==="favorites")list=items.filter(x=>favorites.includes(x.id));if(activeTab==="history")list=history.map(id=>items.find(x=>x.id===id)).filter(Boolean);if(activeTab==="home")list=list.slice(0,9);if(q)list=list.filter(x=>(x.title+" "+(x.description||"")+" "+x.kind).toLowerCase().includes(q));
-if(activeTab==="profile"){$("content").innerHTML=`<section class="panel"><h3>Профиль MediaVerse</h3><p>Пользователь: ${esc(user?.first_name||tg?.initDataUnsafe?.user?.first_name||"Telegram")}</p><p>Избранное синхронизируется с сервером после настройки API и запуска из Telegram. В демо-режиме данные сохраняются на этом устройстве.</p><p>В избранном: ${favorites.length} · В истории: ${history.length}</p></section>`;$("empty").classList.add("hidden");$("resultCount").textContent="";return}
-if(activeTab==="vpn"){$("content").innerHTML=`<section class="panel"><h3>🛡 VPN для YouTube и TikTok</h3><div class="notice">Mini App не может включить VPN или изменить сетевые маршруты устройства. Настройка выполняется отдельно в StealthSurf VPN/совместимом клиенте. Не публикуй личную ссылку подписки.</div><ol><li>Windows: если клиент поддерживает split tunneling, задай прямой маршрут по умолчанию и правила YouTube/TikTok через VPN.</li><li>Android: выбери только приложения YouTube и TikTok в настройках приложений VPN, если функция доступна.</li><li>Проверь доступ к обоим сервисам и обычным сайтам/приложениям.</li></ol></section>`;$("empty").classList.add("hidden");$("resultCount").textContent="";return}
-$("content").innerHTML=list.map(card).join("");$("resultCount").textContent=list.length+" элементов";$("empty").classList.toggle("hidden",list.length!==0)}
+
+// Convert a real YouTube/TikTok video link to its official embedded player URL.
+function mediaEmbedUrl(tab,raw){
+  let u;
+  try{u=new URL(raw)}catch{return null}
+  if(u.protocol!=="https:")return null;
+  const host=u.hostname.toLowerCase();
+  if(tab==="youtube"){
+    const allowed=["youtube.com","www.youtube.com","m.youtube.com","music.youtube.com","youtu.be","www.youtu.be"];
+    if(!allowed.includes(host))return null;
+    const parts=u.pathname.split("/").filter(Boolean);
+    let id=null;
+    if(host==="youtu.be"||host==="www.youtu.be")id=parts[0]||null;
+    else if(parts[0]==="watch")id=u.searchParams.get("v");
+    else if(["shorts","embed","live"].includes(parts[0]))id=parts[1]||null;
+    if(id&&/^[A-Za-z0-9_-]{11}$/.test(id))return "https://www.youtube-nocookie.com/embed/"+id+"?playsinline=1&rel=0";
+    const list=u.searchParams.get("list");
+    if(list&&/^[A-Za-z0-9_-]+$/.test(list))return "https://www.youtube-nocookie.com/embed/videoseries?list="+encodeURIComponent(list);
+    return null;
+  }
+  if(tab==="tiktok"){
+    if(host!=="tiktok.com"&&!host.endsWith(".tiktok.com"))return null;
+    const match=u.pathname.match(/\/video\/(\d+)/);
+    return match?"https://www.tiktok.com/player/v1/"+match[1]+"?controls=1&description=1&music_info=1":null;
+  }
+  return null;
+}
+
+function render(){
+  const t=TITLES[activeTab]||TITLES.home;
+  $("eyebrow").textContent=t[0];
+  $("sectionTitle").textContent=t[1];
+  const q=query.trim().toLowerCase();
+  let list=items.filter(x=>kindFilter(activeTab,x));
+  if(activeTab==="favorites")list=items.filter(x=>favorites.includes(x.id));
+  if(activeTab==="history")list=history.map(id=>items.find(x=>x.id===id)).filter(Boolean);
+  if(activeTab==="home")list=list.slice(0,9);
+  if(q)list=list.filter(x=>(x.title+" "+(x.description||"")+" "+x.kind).toLowerCase().includes(q));
+
+  if(activeTab==="profile"){
+    $("content").innerHTML=`<section class="panel"><h3>Профиль MediaVerse</h3><p>Пользователь: ${esc(user?.first_name||tg?.initDataUnsafe?.user?.first_name||"Telegram")}</p><p>Избранное синхронизируется с сервером после настройки API и запуска из Telegram. В демо-режиме данные сохраняются на этом устройстве.</p><p>В избранном: ${favorites.length} · В истории: ${history.length}</p></section>`;
+    $("empty").classList.add("hidden");$("resultCount").textContent="";return;
+  }
+  if(activeTab==="vpn"){
+    $("content").innerHTML=`<section class="panel"><h3>🛡 VPN для YouTube и TikTok</h3><div class="notice">Mini App не может включить VPN или изменить сетевые маршруты устройства. Настройка выполняется отдельно в StealthSurf VPN/совместимом клиенте. Не публикуй личную ссылку подписки.</div><ol><li>Windows: если клиент поддерживает split tunneling, задай прямой маршрут по умолчанию и правила YouTube/TikTok через VPN.</li><li>Android: выбери только приложения YouTube и TikTok в настройках приложений VPN, если функция доступна.</li><li>Проверь доступ к обоим сервисам и обычным сайтам/приложениям.</li></ol></section>`;
+    $("empty").classList.add("hidden");$("resultCount").textContent="";return;
+  }
+
+  if(activeTab==="youtube"||activeTab==="tiktok"){
+    const isYouTube=activeTab==="youtube";
+    const service=isYouTube?"YouTube":"TikTok";
+    const embedPanel=`<section class="panel"><h3>${isYouTube?"▶ YouTube":"♪ TikTok"} — видео внутри приложения</h3><p>Вставь ссылку на конкретный ролик${isYouTube?" или плейлист":""}. Главную страницу сервиса встроить нельзя.</p><form id="mediaEmbedForm" style="display:flex;gap:10px;flex-wrap:wrap;margin:16px 0"><input id="mediaLinkInput" type="url" required placeholder="${isYouTube?"https://www.youtube.com/watch?v=…":"https://www.tiktok.com/@user/video/…"}" aria-label="Ссылка на видео" style="box-sizing:border-box;flex:1;min-width:220px;max-width:100%;padding:12px;border:1px solid #34394b;border-radius:10px;background:#0e111b;color:#f5f6fb"><button class="open-btn" type="submit">Открыть видео ▶</button></form><p id="mediaEmbedStatus" class="notice hidden" role="status"></p><div style="display:flex;justify-content:center;margin-top:14px"><iframe id="mediaEmbedFrame" class="hidden" title="${service} video player" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" style="width:100%;max-width:${isYouTube?"800px":"420px"};height:${isYouTube?"min(56.25vw,450px)":"min(145vw,650px)"};min-height:240px;border:0;border-radius:12px;background:#000"></iframe></div><p class="muted" style="margin-top:12px;font-size:13px">Если автор запретил встраивание или ролик недоступен, плеер его не покажет.</p><p><a href="${isYouTube?"https://www.youtube.com/":"https://www.tiktok.com/"}" target="_blank" rel="noopener noreferrer">Открыть ${service} отдельно</a></p></section>`;
+    $("content").innerHTML=embedPanel+list.map(card).join("");
+    $("empty").classList.add("hidden");$("resultCount").textContent=list.length?list.length+" элементов":"";
+    $("mediaEmbedForm").addEventListener("submit",e=>{
+      e.preventDefault();
+      const frame=$("mediaEmbedFrame"),status=$("mediaEmbedStatus");
+      const src=mediaEmbedUrl(activeTab,$("mediaLinkInput").value.trim());
+      if(!src){
+        status.textContent=isYouTube?"Нужна ссылка на ролик YouTube (watch, youtu.be, shorts) или плейлист. Одна главная страница не подходит.":"Нужна полная ссылка на ролик TikTok вида tiktok.com/@имя/video/123456789. Короткая ссылка vm.tiktok.com не содержит ID ролика.";
+        status.classList.remove("hidden");frame.src="about:blank";frame.classList.add("hidden");return;
+      }
+      status.classList.add("hidden");frame.src=src;frame.classList.remove("hidden");
+    });
+    return;
+  }
+
+  $("content").innerHTML=list.map(card).join("");
+  $("resultCount").textContent=list.length+" элементов";
+  $("empty").classList.toggle("hidden",list.length!==0);
+}
+
 function esc(s){return String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function card(x){return `<article class="card"><div class="card-top"><div class="art">${x.kind==="anime"?"🍥":x.kind==="series"?"📺":x.kind==="youtube"?"▶️":x.kind==="tiktok"?"♪":"🎬"}</div><span class="tag">${esc(x.kind).toUpperCase()}</span></div><h3>${esc(x.title)}</h3><p>${esc(x.description)}</p><div class="actions"><button class="open-btn" data-play="${esc(x.id)}">Смотреть ▶</button><button class="save-btn" data-save="${esc(x.id)}">${favorites.includes(x.id)?"♥":"♡"}</button></div></article>`}
 async function toggleFavorite(id){const has=favorites.includes(id);if(has)favorites=favorites.filter(x=>x!==id);else favorites.unshift(id);localSet("favorites",favorites);try{if(has)await api("/api/favorites/"+encodeURIComponent(id),{method:"DELETE"});else await api("/api/favorites",{method:"POST",body:JSON.stringify({item_id:id})});favorites=await api("/api/favorites")}catch(e){}render()}
