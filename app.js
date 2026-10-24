@@ -1,4 +1,4 @@
-const API=(window.MEDIAVERSE_API_BASE||"").replace(/\/$/,"");
+const API=(window.MEDIAVERSE_API_BASE||"https://two1mediaverse-cinema.onrender.com").replace(/\/$/,"");
 const tg=window.Telegram?.WebApp;
 let activeTab="home",query="",items=[],favorites=[],history=[],user=null;
 const $=id=>document.getElementById(id);
