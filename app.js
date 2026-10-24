@@ -7,7 +7,37 @@ const localKey=k=>"mv_"+k;
 function localGet(k){try{return JSON.parse(localStorage.getItem(localKey(k))||"[]")}catch{return []}}
 function localSet(k,v){localStorage.setItem(localKey(k),JSON.stringify(v))}
 async function api(path,opts={}){if(!API)throw Error("API_BASE_URL не настроен");const headers={"Content-Type":"application/json",...(opts.headers||{})};if(tg?.initData)headers["X-Telegram-Init-Data"]=tg.initData;const r=await fetch(API+path,{...opts,headers});if(!r.ok)throw Error(await r.text());return r.json()}
-async function init(){if(tg){tg.ready();tg.expand()}try{items=await api("/api/catalog");user=await api("/api/me");favorites=await api("/api/favorites");history=await api("/api/history")}catch(e){items=[];favorites=localGet("favorites");history=localGet("history");console.warn("API unavailable; demo/local mode",e)}render()}
+
+async function init(){
+  if(tg){
+    tg.ready();
+    tg.expand();
+  }
+
+  try {
+    items = await api("/api/catalog");
+  } catch(e) {
+    console.error("Ошибка загрузки каталога:", e);
+    items = [];
+  }
+
+  try {
+    if(tg?.initData) {
+      user = await api("/api/me");
+      favorites = await api("/api/favorites");
+      history = await api("/api/history");
+    } else {
+      favorites = localGet("favorites");
+      history = localGet("history");
+    }
+  } catch(e) {
+    favorites = localGet("favorites");
+    history = localGet("history");
+  }
+
+  render();
+}
+
 function kindFilter(tab,x){if(tab==="movies")return x.kind==="movie";if(tab==="series")return x.kind==="series";if(tab==="anime")return x.kind==="anime";if(tab==="youtube")return x.kind==="youtube";if(tab==="tiktok")return x.kind==="tiktok";return true}
 function render(){const t=TITLES[activeTab]||TITLES.home;$("eyebrow").textContent=t[0];$("sectionTitle").textContent=t[1];const q=query.trim().toLowerCase();let list=items.filter(x=>kindFilter(activeTab,x));if(activeTab==="favorites")list=items.filter(x=>favorites.includes(x.id));if(activeTab==="history")list=history.map(id=>items.find(x=>x.id===id)).filter(Boolean);if(activeTab==="home")list=list.slice(0,9);if(q)list=list.filter(x=>(x.title+" "+(x.description||"")+" "+x.kind).toLowerCase().includes(q));
 if(activeTab==="profile"){$("content").innerHTML=`<section class="panel"><h3>Профиль MediaVerse</h3><p>Пользователь: ${esc(user?.first_name||tg?.initDataUnsafe?.user?.first_name||"Telegram")}</p><p>Избранное синхронизируется с сервером после настройки API и запуска из Telegram. В демо-режиме данные сохраняются на этом устройстве.</p><p>В избранном: ${favorites.length} · В истории: ${history.length}</p></section>`;$("empty").classList.add("hidden");$("resultCount").textContent="";return}
