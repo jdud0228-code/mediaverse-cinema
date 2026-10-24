@@ -1,0 +1,29 @@
+[
+  {
+    "id": "sample-film-001",
+    "title": "Мой лицензированный фильм",
+    "kind": "movie",
+    "description": "Замените эту демонстрационную запись своим контентом с правами на распространение.",
+    "poster": "",
+    "video_url": "https://media.example.com/owned-content/sample.mp4",
+    "license_note": "REPLACE_WITH_YOUR_LICENSE_RECORD"
+  },
+  {
+    "id": "sample-series-001",
+    "title": "Мой лицензированный сериал — серия 1",
+    "kind": "series",
+    "description": "Пример записи серии. Замените URL на ваш лицензированный видеофайл.",
+    "poster": "",
+    "video_url": "https://media.example.com/owned-content/episode-01.mp4",
+    "license_note": "REPLACE_WITH_YOUR_LICENSE_RECORD"
+  },
+  {
+    "id": "sample-anime-001",
+    "title": "Моё лицензированное аниме",
+    "kind": "anime",
+    "description": "Пример записи аниме. Замените на контент, права на который у вас есть.",
+    "poster": "",
+    "video_url": "https://media.example.com/owned-content/anime-01.mp4",
+    "license_note": "REPLACE_WITH_YOUR_LICENSE_RECORD"
+  }
+]
