@@ -2,7 +2,7 @@ import os, json, hmac, hashlib, secrets, sqlite3, time
 from urllib.parse import parse_qsl
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Header
-from fastapi.middleware.cors import CORSMiddlewar
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
