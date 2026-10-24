@@ -2,6 +2,7 @@ import os, json, hmac, hashlib, secrets, sqlite3, time
 from urllib.parse import parse_qsl
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Header
+from fastapi.middleware.cors import CORSMiddlewar
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -11,6 +12,15 @@ DB_PATH = os.getenv("DATABASE_PATH", "mediaverse.sqlite3")
 CATALOG_PATH = Path(__file__).with_name("catalog.json")
 EXAMPLE_PATH = Path(__file__).with_name("catalog.example.json")
 app = FastAPI(title="MediaVerse API", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://mediaverse-cinema.onrender.com",
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Telegram-Init-Data"],
+)
 
 def db():
     con = sqlite3.connect(DB_PATH)
